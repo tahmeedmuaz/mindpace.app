@@ -88,13 +88,25 @@ $students_result = $conn->query($students_sql);
 // Fetch Subjects for dropdown
 $subjects_result = $conn->query("SELECT subj_id, subj_name FROM subject");
 
-// FEATURE 6: MILESTONE APPRAISER
+// FEATURE 6: MILESTONE APPRAISER (Fully Upgraded Tier System)
 $hours_sql = "SELECT SUM(TIMESTAMPDIFF(MINUTE, ss.start_time, ss.end_time) / 60.0) AS total_hours 
               FROM study_session ss JOIN activity_log al ON ss.log_id = al.log_id 
               WHERE al.user_id = $user_id";
 $hours_result = $conn->query($hours_sql)->fetch_assoc();
 $total_hours = round($hours_result['total_hours'] ?? 0, 1);
-$badge_status = ($total_hours >= 20) ? "🏆 Healthy Scholar Badge Earned!" : "Keep studying to unlock badges!";
+
+// The Multi-Tier Badge Logic (Ensure no other $badge_status lines exist outside this block!)
+if ($total_hours >= 50) {
+    $badge_status = "🌟 Grandmaster Scholar Badge Earned!";
+} elseif ($total_hours >= 20) {
+    $badge_status = "🏆 Healthy Scholar Badge Earned!";
+} elseif ($total_hours >= 10) {
+    $badge_status = "🥈 Focused Learner Badge Earned!";
+} elseif ($total_hours >= 5) {
+    $badge_status = "🥉 Rising Star Badge Earned!";
+} else {
+    $badge_status = "Keep studying to unlock your first badge (5 hrs)!";
+}
 
 // FEATURE 1: SMART PEER TUTOR MATCHING
 $tutor_sql = "
