@@ -158,17 +158,19 @@ $habit_sql = "
 ";
 $habit_result = $conn->query($habit_sql);
 
-// FEATURE 5: CLAIM MVP CHALLENGER
+// FEATURE: STUDY GROUP MVP (Fixed Duplicate Multiplication Bug)
 $mvp_sql = "
     SELECT u.username, SUM(TIMESTAMPDIFF(MINUTE, ss.start_time, ss.end_time) / 60.0) AS group_hours
-    FROM user u
-    JOIN group_member gm ON u.user_id = gm.user_id
-    JOIN activity_log al ON u.user_id = al.user_id
+    FROM user u 
+    JOIN activity_log al ON u.user_id = al.user_id 
     JOIN study_session ss ON al.log_id = ss.log_id
-    WHERE gm.grp_id IN (SELECT grp_id FROM group_member WHERE user_id = $user_id)
+    WHERE u.user_id IN (
+        SELECT DISTINCT user_id FROM group_member 
+        WHERE grp_id IN (SELECT grp_id FROM group_member WHERE user_id = $user_id)
+    )
       AND al.log_type = 'study'
-    GROUP BY u.username
-    ORDER BY group_hours DESC
+    GROUP BY u.username 
+    ORDER BY group_hours DESC 
     LIMIT 3
 ";
 $mvp_result = $conn->query($mvp_sql);
