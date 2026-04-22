@@ -38,8 +38,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_study'])) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_wellness'])) {
     $sleep = $_POST['sleep'];
     $stress = $_POST['stress'];
-    $mood = 5; // Defaulting to 5 for simplicity
-    $log_date = date("Y-m-d"); // Log for today
+    $mood = 5; 
+    $log_date = date("Y-m-d"); 
 
     $sql_parent = "INSERT INTO activity_log (user_id, log_date, log_type) VALUES ($user_id, '$log_date', 'wellness')";
     if ($conn->query($sql_parent) === TRUE) {
@@ -51,38 +51,44 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_wellness'])) {
     }
 }
 
-// ---------------------------------------------------------
-// DATA QUERIES FOR THE DASHBOARD FEATURES
-// ---------------------------------------------------------
-// 3. Create a Study Group (Organic Generation)
+// 3. Create a Study Group with Member Selection (FIXED BRACKETS)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['create_group'])) {
     $group_name = $conn->real_escape_string($_POST['group_name']);
     $joined_date = date("Y-m-d");
 
-    // First: Create the group in the parent table
     $sql_create_group = "INSERT INTO study_group (group_name) VALUES ('$group_name')";
     
     if ($conn->query($sql_create_group) === TRUE) {
-        $new_grp_id = $conn->insert_id; // Grab the newly created group ID
+        $new_grp_id = $conn->insert_id; 
 
-        // Second: Automatically add the creator as a group member
-        $sql_join_group = "INSERT INTO group_member (user_id, grp_id, joined_date) 
-                           VALUES ($user_id, $new_grp_id, '$joined_date')";
+        // Automatically add the creator
+        $conn->query("INSERT INTO group_member (user_id, grp_id, joined_date) VALUES ($user_id, $new_grp_id, '$joined_date')");
         
-        if ($conn->query($sql_join_group) === TRUE) {
-            $message = "<p style='color: green;'>Study group '$group_name' created successfully!</p>";
-        } else {
-            $message = "<p style='color: red;'>Group created, but failed to join: " . $conn->error . "</p>";
+        // Loop through and add any selected invited members
+        if (isset($_POST['members']) && !empty($_POST['members'])) {
+            foreach ($_POST['members'] as $invited_id) {
+                $invited_id = (int)$invited_id; 
+                $conn->query("INSERT INTO group_member (user_id, grp_id, joined_date) VALUES ($invited_id, $new_grp_id, '$joined_date')");
+            }
         }
+        $message = "<p style='color: green;'>Study group '$group_name' created and members invited!</p>";
     } else {
         $message = "<p style='color: red;'>Error creating group: " . $conn->error . "</p>";
     }
-}
+} // <-- This is where the block properly ends now!
+
+// ---------------------------------------------------------
+// DATA QUERIES FOR THE DASHBOARD FEATURES
+// ---------------------------------------------------------
+
+// Fetch all OTHER students to populate the Invite list (Now safely outside the brackets!)
+$students_sql = "SELECT user_id, username FROM user WHERE user_type = 'student' AND user_id != $user_id";
+$students_result = $conn->query($students_sql);
 
 // Fetch Subjects for dropdown
 $subjects_result = $conn->query("SELECT subj_id, subj_name FROM subject");
 
-// FEATURE 6: MILESTONE APPRAISER (Total Hours)
+// FEATURE 6: MILESTONE APPRAISER
 $hours_sql = "SELECT SUM(TIMESTAMPDIFF(MINUTE, ss.start_time, ss.end_time) / 60.0) AS total_hours 
               FROM study_session ss JOIN activity_log al ON ss.log_id = al.log_id 
               WHERE al.user_id = $user_id";
@@ -91,7 +97,6 @@ $total_hours = round($hours_result['total_hours'] ?? 0, 1);
 $badge_status = ($total_hours >= 20) ? "🏆 Healthy Scholar Badge Earned!" : "Keep studying to unlock badges!";
 
 // FEATURE 1: SMART PEER TUTOR MATCHING
-// Finds subjects where YOU had low focus (<=5), and matches you with a student who had high focus (>=8) in that subject.
 $tutor_sql = "
     SELECT DISTINCT u.username AS tutor_name, s.subj_name 
     FROM study_session ss1
@@ -105,8 +110,6 @@ $tutor_sql = "
 ";
 $tutor_result = $conn->query($tutor_sql);
 
-// FEATURE 2: HABIT IMPACT ANALYZER
-// Joins your wellness logs and study logs on the same date to see correlations
 // FEATURE 2: HABIT IMPACT ANALYZER (Bug Fix Applied)
 $habit_sql = "
     SELECT 
@@ -127,8 +130,8 @@ $habit_sql = "
     LIMIT 5
 ";
 $habit_result = $conn->query($habit_sql);
+
 // FEATURE 5: CLAIM MVP CHALLENGER
-// Finds the study group the current user belongs to, then ranks all members by total study hours
 $mvp_sql = "
     SELECT u.username, SUM(TIMESTAMPDIFF(MINUTE, ss.start_time, ss.end_time) / 60.0) AS group_hours
     FROM user u
@@ -183,8 +186,12 @@ $mvp_result = $conn->query($mvp_sql);
                 <select name="subj_id" required>
                     <option value="">-- Choose Course --</option>
                     <?php 
-                    mysqli_data_seek($subjects_result, 0);
-                    while($row = $subjects_result->fetch_assoc()) echo "<option value='" . $row['subj_id'] . "'>" . htmlspecialchars($row['subj_name']) . "</option>"; 
+                    if ($subjects_result && $subjects_result->num_rows > 0) {
+                        mysqli_data_seek($subjects_result, 0);
+                        while($row = $subjects_result->fetch_assoc()) {
+                            echo "<option value='" . $row['subj_id'] . "'>" . htmlspecialchars($row['subj_name']) . "</option>"; 
+                        }
+                    }
                     ?>
                 </select>
                 <input type="datetime-local" name="start_time" required>
@@ -199,8 +206,8 @@ $mvp_result = $conn->query($mvp_sql);
                 <input type="number" name="stress" min="1" max="10" placeholder="Stress Level (1-10)" required>
                 <button type="submit" name="log_wellness" class="btn-blue">Save Wellness</button>
             </form>
-			
-			<form method="POST" action="" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+            
+            <form method="POST" action="" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
                 <h4 style="margin: 0 0 10px 0;">3. Create a Study Group</h4>
                 
                 <input type="text" name="group_name" placeholder="Enter Group Name (e.g., Midnight Coders)" required>
@@ -246,7 +253,7 @@ $mvp_result = $conn->query($mvp_sql);
                 </table>
             </div>
 
-            <div class="card">
+            <div class="card" style="margin-bottom: 20px;">
                 <h3>🤝 Recommended Peer Tutors</h3>
                 <p style="font-size: 0.9em; color: #555;">Struggling to focus? These students excel in your tough courses.</p>
                 <table>
@@ -262,7 +269,8 @@ $mvp_result = $conn->query($mvp_sql);
                     ?>
                 </table>
             </div>
-			<div class="card" style="margin-top: 20px;">
+            
+            <div class="card">
                 <h3>👑 Study Group MVP</h3>
                 <p style="font-size: 0.9em; color: #555;">Leaderboard for your active study groups.</p>
                 <table>
