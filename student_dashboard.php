@@ -34,20 +34,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_study'])) {
     }
 }
 
-// 2. Log Wellness
+// 2. Log Wellness (Upgraded to handle specific dates and Upserts)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_wellness'])) {
     $sleep = $_POST['sleep'];
     $stress = $_POST['stress'];
-    $mood = 5; 
-    $log_date = date("Y-m-d"); 
+    $log_date = $conn->real_escape_string($_POST['log_date']); 
+    $mood = 5; // Default mood placeholder
 
-    $sql_parent = "INSERT INTO activity_log (user_id, log_date, log_type) VALUES ($user_id, '$log_date', 'wellness')";
-    if ($conn->query($sql_parent) === TRUE) {
-        $log_id = $conn->insert_id; 
-        $sql_child = "INSERT INTO wellness_log (log_id, sleep_hours, stress_level, mood_score) 
-                      VALUES ($log_id, $sleep, $stress, $mood)";
-        $conn->query($sql_child);
-        $message = "<p style='color: green;'>Wellness data logged successfully!</p>";
+    // Check if the user already has a wellness log for this exact date
+    $check_sql = "SELECT log_id FROM activity_log WHERE user_id = $user_id AND log_date = '$log_date' AND log_type = 'wellness'";
+    $check_result = $conn->query($check_sql);
+
+    if ($check_result && $check_result->num_rows > 0) {
+        // OVERWRITE: A log already exists for this date, so we update it
+        $row = $check_result->fetch_assoc();
+        $existing_log_id = $row['log_id'];
+
+        $update_sql = "UPDATE wellness_log SET sleep_hours = $sleep, stress_level = $stress WHERE log_id = $existing_log_id";
+        $conn->query($update_sql);
+        $message = "<p style='color: green;'>Wellness data for $log_date updated successfully!</p>";
+    } else {
+        // INSERT: No log exists for this date, create a brand new one
+        $sql_parent = "INSERT INTO activity_log (user_id, log_date, log_type) VALUES ($user_id, '$log_date', 'wellness')";
+        if ($conn->query($sql_parent) === TRUE) {
+            $new_log_id = $conn->insert_id; 
+            $sql_child = "INSERT INTO wellness_log (log_id, sleep_hours, stress_level, mood_score) 
+                          VALUES ($new_log_id, $sleep, $stress, $mood)";
+            $conn->query($sql_child);
+            $message = "<p style='color: green;'>Wellness data logged successfully!</p>";
+        }
     }
 }
 
@@ -214,6 +229,8 @@ $mvp_result = $conn->query($mvp_sql);
 
             <form method="POST" action="">
                 <h4 style="margin: 0 0 10px 0;">2. Wellness Check-in</h4>
+                <label style="font-size: 0.9em; color: #555;">Select Date:</label>
+                <input type="date" name="log_date" required value="<?php echo date('Y-m-d'); ?>">
                 <input type="number" name="sleep" step="0.5" min="0" max="24" placeholder="Hours of Sleep" required>
                 <input type="number" name="stress" min="1" max="10" placeholder="Stress Level (1-10)" required>
                 <button type="submit" name="log_wellness" class="btn-blue">Save Wellness</button>
