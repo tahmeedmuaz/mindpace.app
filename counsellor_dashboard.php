@@ -3,7 +3,7 @@
 session_start();
 require 'db_connect.php';
 
-// Security Check: Kick them out if they aren't logged in OR aren't a counsellor
+
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'counsellor') {
     header("Location: index.php");
     exit();
@@ -13,7 +13,7 @@ $username = $_SESSION['username'];
 $message = "";
 
 // ---------------------------------------------------------
-// FORM HANDLING: RESOLVE CRISIS (Updated to match your DB schema)
+
 // ---------------------------------------------------------
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['resolve_crisis'])) {
     $student_id = (int)$_POST['student_id'];
@@ -22,15 +22,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['resolve_crisis'])) {
     $action_taken = $conn->real_escape_string($_POST['action_taken']);
     $today = date("Y-m-d");
     
-    // Step 1: Create a record in the burnout_alert table first
+    
     $sql_alert = "INSERT INTO burnout_alert (user_id, risk_level, alert_date) 
                   VALUES ($student_id, $stress_level, '$log_date')";
     
     if ($conn->query($sql_alert) === TRUE) {
-        // Grab the ID of the alert we just created
+        
         $alert_id = $conn->insert_id;
         
-        // Step 2: Create the intervention linked to that alert_id
+    
         $sql_intervention = "INSERT INTO intervention (alert_id, meeting_date, resolution_status) 
                              VALUES ($alert_id, '$today', '$action_taken')";
         $conn->query($sql_intervention);
@@ -41,10 +41,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['resolve_crisis'])) {
     }
 }
 
-// ---------------------------------------------------------
-// FEATURE 3: CRISIS AUDIT SCANNER (Updated to match your DB schema)
-// Scans for high stress, but excludes logs that already have a burnout_alert on that date
-// ---------------------------------------------------------
 $crisis_sql = "
     SELECT u.user_id, u.username, wl.stress_level, wl.sleep_hours, al.log_date 
     FROM wellness_log wl 
