@@ -3,7 +3,7 @@
 session_start();
 require 'db_connect.php';
 
-// Security Check: Kick them out if they aren't logged in OR aren't an admin
+
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'admin') {
     header("Location: index.php");
     exit();
@@ -12,13 +12,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'admin') {
 $username = $_SESSION['username'];
 $audit_message = "";
 
-// FEATURE 4: CURRICULUM POLICY ENFORCER (Macro-Level Admin Control)
+// FEATURE 4: CURRICULUM POLICY ENFORCER 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['enforce_policy'])) {
     $subj_id = (int)$_POST['subj_id'];
     $course_name = $conn->real_escape_string($_POST['course_name']);
     $reduction_pct = (float)$_POST['reduction_pct']; 
-
-    // Step 1: Query the exact current workload data for this specific course
     $impact_sql = "
         SELECT 
             COUNT(log_id) as total_sessions, 
@@ -32,12 +30,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['enforce_policy'])) {
         $current_avg = $impact_result['current_avg'];
         $total_sessions = $impact_result['total_sessions'];
 
-        // Step 2: 300-Level Aggregate Impact Calculations
+        
         $new_projected_avg = $current_avg * (1 - ($reduction_pct / 100));
         $hours_saved_per_session = $current_avg - $new_projected_avg;
         $total_system_hours_saved = $hours_saved_per_session * $total_sessions;
 
-        // Step 3: Simulate the Systemic Admin Action
         $audit_message = "
         <div style='background: #fdf2e9; padding: 15px; border-left: 5px solid #d35400; margin-bottom: 20px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
             <h4 style='color: #d35400; margin: 0 0 10px 0;'>🏛️ Dean's Directive Issued to {$course_name} Faculty</h4>
@@ -52,7 +49,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['enforce_policy'])) {
     }
 }
 
-// Fetch Dashboard Data (With ABS failsafe to prevent negative data bugs)
 $outlier_sql = "
     SELECT 
         s.subj_id,
