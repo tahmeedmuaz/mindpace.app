@@ -1,8 +1,7 @@
 <?php
-// counsellor_dashboard.php
+
 session_start();
 require 'db_connect.php';
-
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'counsellor') {
     header("Location: index.php");
@@ -12,9 +11,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'counsellor') {
 $username = $_SESSION['username'];
 $message = "";
 
-// ---------------------------------------------------------
 
-// ---------------------------------------------------------
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['resolve_crisis'])) {
     $student_id = (int)$_POST['student_id'];
     $log_date = $conn->real_escape_string($_POST['log_date']);
@@ -22,15 +19,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['resolve_crisis'])) {
     $action_taken = $conn->real_escape_string($_POST['action_taken']);
     $today = date("Y-m-d");
     
-    
+   
     $sql_alert = "INSERT INTO burnout_alert (user_id, risk_level, alert_date) 
                   VALUES ($student_id, $stress_level, '$log_date')";
     
     if ($conn->query($sql_alert) === TRUE) {
-        
+       
         $alert_id = $conn->insert_id;
         
-    
         $sql_intervention = "INSERT INTO intervention (alert_id, meeting_date, resolution_status) 
                              VALUES ($alert_id, '$today', '$action_taken')";
         $conn->query($sql_intervention);
@@ -41,15 +37,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['resolve_crisis'])) {
     }
 }
 
+
+// crisis audit scanner
+
 $crisis_sql = "
-    SELECT u.user_id, u.username, wl.stress_level, wl.sleep_hours, al.log_date 
-    FROM wellness_log wl 
-    JOIN activity_log al ON wl.log_id = al.log_id 
-    JOIN user u ON al.user_id = u.user_id 
-    LEFT JOIN burnout_alert ba ON ba.user_id = u.user_id AND ba.alert_date = al.log_date
-    WHERE wl.stress_level >= 8 AND ba.alert_id IS NULL
-    ORDER BY wl.stress_level DESC, al.log_date ASC
+   select u.user_id, u.username, wl.stress_level, wl.sleep_hours, al.log_date from wellness_log wl
+join activity_log al on wl.log_id = al.log_id 
+join user u on al.user_id = u.user_id
+left join burnout_alert ba on ba.user_id = u.user_id and ba.alert_date = al.log_date
+where wl.stress_level >= 8 and ba.alert_id is null order by wl.stress_level desc, al.log_date asc
 ";
+
 $crisis_result = $conn->query($crisis_sql);
 ?>
 
