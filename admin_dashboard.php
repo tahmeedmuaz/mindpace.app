@@ -1,8 +1,7 @@
 <?php
-// admin_dashboard.php
+
 session_start();
 require 'db_connect.php';
-
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'admin') {
     header("Location: index.php");
@@ -12,17 +11,16 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] != 'admin') {
 $username = $_SESSION['username'];
 $audit_message = "";
 
-// FEATURE 4: CURRICULUM POLICY ENFORCER 
+// curriculum policy 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['enforce_policy'])) {
     $subj_id = (int)$_POST['subj_id'];
     $course_name = $conn->real_escape_string($_POST['course_name']);
     $reduction_pct = (float)$_POST['reduction_pct']; 
+
+    
     $impact_sql = "
-        SELECT 
-            COUNT(log_id) as total_sessions, 
-            AVG(ABS(TIMESTAMPDIFF(MINUTE, start_time, end_time)) / 60.0) as current_avg
-        FROM study_session 
-        WHERE subj_id = $subj_id
+       select count(log_id) as total_sessions, avg(abs(timestampdiff(minute, start_time, end_time)) / 60.0) as current_avg from study_session 
+       where subj_id = $subj_id
     ";
     $impact_result = $conn->query($impact_sql)->fetch_assoc();
     
@@ -30,11 +28,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['enforce_policy'])) {
         $current_avg = $impact_result['current_avg'];
         $total_sessions = $impact_result['total_sessions'];
 
-        
+       
         $new_projected_avg = $current_avg * (1 - ($reduction_pct / 100));
         $hours_saved_per_session = $current_avg - $new_projected_avg;
         $total_system_hours_saved = $hours_saved_per_session * $total_sessions;
 
+        
         $audit_message = "
         <div style='background: #fdf2e9; padding: 15px; border-left: 5px solid #d35400; margin-bottom: 20px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
             <h4 style='color: #d35400; margin: 0 0 10px 0;'>🏛️ Dean's Directive Issued to {$course_name} Faculty</h4>
@@ -49,18 +48,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['enforce_policy'])) {
     }
 }
 
+
 $outlier_sql = "
-    SELECT 
-        s.subj_id,
-        d.dept_name, 
-        s.subj_name, 
-        COUNT(ss.log_id) AS total_sessions_logged,
-        AVG(ABS(TIMESTAMPDIFF(MINUTE, ss.start_time, ss.end_time)) / 60.0) AS avg_hours
-    FROM department d
-    JOIN subject s ON d.dept_id = s.dept_id
-    JOIN study_session ss ON s.subj_id = ss.subj_id
-    GROUP BY s.subj_id, d.dept_name, s.subj_name
-    ORDER BY avg_hours DESC
+   select s.subj_id, d.dept_name, s.subj_name, count(ss.log_id) as total_sessions_logged, avg(abs(timestampdiff(minute, ss.start_time, ss.end_time)) / 60.0) as avg_hours from department d
+join subject s on d.dept_id = s.dept_id
+join study_session ss on s.subj_id = ss.subj_id
+group by s.subj_id, d.dept_name, s.subj_name order by avg_hours desc
 ";
 $outlier_result = $conn->query($outlier_sql);
 ?>
