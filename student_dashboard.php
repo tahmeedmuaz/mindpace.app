@@ -13,7 +13,6 @@ $username = $_SESSION['username'];
 $message = "";
 
 // ---------------------------------------------------------
-// FORM HANDLING: LOGGING DATA
 // ---------------------------------------------------------
 
 // 1. Log Study Session
@@ -24,7 +23,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_study'])) {
     $end_time = $conn->real_escape_string($_POST['end_time']);
     $log_date = date("Y-m-d", strtotime($start_time));
 
-    // Data Integrity Check
     if (strtotime($start_time) >= strtotime($end_time)) {
         $message = "<div style='background: #fadbd8; padding: 10px; border-left: 5px solid #e74c3c; border-radius: 4px;'><p style='color: #c0392b; margin: 0;'><strong>⚠️ Validation Error:</strong> Your study session cannot end before it starts! Please check your dates.</p></div>";
     } else {
@@ -57,7 +55,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_wellness'])) {
     $check_result = $conn->query($check_sql);
 
     if ($check_result && $check_result->num_rows > 0) {
-        // If log already exists, update it
         $row = $check_result->fetch_assoc();
         $existing_log_id = $row['log_id'];
 
