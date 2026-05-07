@@ -12,7 +12,8 @@ $user_id = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 $message = "";
 
-// ---------------------------------------------------------
+// --------------------------------------------------------
+
 // ---------------------------------------------------------
 
 // 1. Log Study Session
@@ -23,6 +24,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_study'])) {
     $end_time = $conn->real_escape_string($_POST['end_time']);
     $log_date = date("Y-m-d", strtotime($start_time));
 
+    
     if (strtotime($start_time) >= strtotime($end_time)) {
         $message = "<div style='background: #fadbd8; padding: 10px; border-left: 5px solid #e74c3c; border-radius: 4px;'><p style='color: #c0392b; margin: 0;'><strong>⚠️ Validation Error:</strong> Your study session cannot end before it starts! Please check your dates.</p></div>";
     } else {
@@ -55,6 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_wellness'])) {
     $check_result = $conn->query($check_sql);
 
     if ($check_result && $check_result->num_rows > 0) {
+        // If log already exists, update it
         $row = $check_result->fetch_assoc();
         $existing_log_id = $row['log_id'];
 
@@ -79,27 +82,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['log_wellness'])) {
         }
     }
 
-    // Daily Algorithmic Analysis
-    $sleep_deficit = max(0, 8 - $sleep);
-    $sleep_penalty = $sleep_deficit * 8;
-
-    $stress_excess = max(0, $stress - 1);
-    $stress_penalty = $stress_excess * 5;
-
-    $readiness_score = max(0, 100 - $sleep_penalty - $stress_penalty);
+    $sql_calc = "
+        SELECT GREATEST(0, 100 - (GREATEST(0, 8 - wl.sleep_hours) * 8) - (GREATEST(0, wl.stress_level - 1) * 5)) AS immediate_score
+        FROM activity_log al
+        JOIN wellness_log wl ON al.log_id = wl.log_id
+        WHERE al.user_id = $user_id AND al.log_date = '$log_date'
+    ";
+    $calc_result = $conn->query($sql_calc)->fetch_assoc();
+    $readiness_score = $calc_result['immediate_score'];
 
     $status_color = ($readiness_score >= 75) ? "#27ae60" : (($readiness_score >= 50) ? "#f39c12" : "#e74c3c");
     $status_text = ($readiness_score >= 75) ? "Optimal" : (($readiness_score >= 50) ? "Fatigued" : "High Risk of Burnout");
 
-    $math_proof = "100% - ({$sleep_deficit} hrs missing × 8%) - ({$stress_excess} stress lvl × 5%)";
-
     $message = "
     <div style='background: white; padding: 15px; border-left: 5px solid {$status_color}; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 4px;'>
         <h4 style='margin: 0 0 5px 0; color: {$status_color};'>✅ Wellness Logged | Readiness Score: {$readiness_score}% ({$status_text})</h4>
-        <p style='margin: 0 0 10px 0; font-size: 0.9em; color: #555;'>Your data was successfully saved. Here is your daily algorithmic analysis:</p>
-        <code style='background: #f8f9fa; padding: 8px; display: block; color: #2c3e50; border: 1px solid #eee; border-radius: 3px;'>
-            <strong>Formula used:</strong> {$math_proof} = {$readiness_score}%
-        </code>
+        <p style='margin: 0; font-size: 0.9em; color: #555;'><strong>300-Level Logic:</strong> Score calculated natively via SQL Database Engine using GREATEST() mathematical functions.</p>
     </div>";
 }
 
@@ -132,9 +130,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['create_group'])) {
     }
 }
 
-// ---------------------------------------------------------
-// DATA QUERIES
-// ---------------------------------------------------------
+
 
 $students_sql = "SELECT user_id, username 
                  FROM user 
@@ -189,7 +185,10 @@ $habit_sql = "
         al.log_date, 
         wl.sleep_hours, 
         wl.stress_level,
-        wl.mood_score
+        GREATEST(0, 100 - 
+            (GREATEST(0, 8 - wl.sleep_hours) * 8) - 
+            (GREATEST(0, wl.stress_level - 1) * 5)
+        ) AS sql_readiness_score
     FROM activity_log al
     JOIN wellness_log wl ON al.log_id = wl.log_id
     WHERE al.user_id = $user_id 
@@ -431,48 +430,34 @@ $mvp_result = $conn->query($mvp_sql);
             </div>
 
             <div class="card">
-                <h3>📋 Recent Wellness History</h3>
-                <p style="font-size: 0.9em; color: #555;">
-                    This table shows your last 7 wellness check-ins.
-                </p>
-
+                <h3>🧮 Historical Readiness Log</h3>
+                <p style="font-size: 0.9em; color: #555;">Calculated natively via SQL Database Engine.</p>
                 <table>
                     <tr>
                         <th>Date</th>
-                        <th>Sleep Hours</th>
-                        <th>Stress Level</th>
-                        <th>Mood Score</th>
-                        <th>Status</th>
+                        <th>Sleep (Hrs)</th>
+                        <th>Stress</th>
+                        <th>Calculated Readiness</th>
                     </tr>
-
-                    <?php
+                    <?php 
                     if ($habit_result && $habit_result->num_rows > 0) {
                         while($row = $habit_result->fetch_assoc()) {
-                            $stress = (int)$row['stress_level'];
-
-                            if ($stress >= 8) {
-                                $status = "<span class='status-high'>High Risk</span>";
-                            } elseif ($stress >= 5) {
-                                $status = "<span class='status-medium'>Moderate</span>";
-                            } else {
-                                $status = "<span class='status-low'>Stable</span>";
-                            }
-
-                            echo "<tr>";
-                            echo "<td>" . htmlspecialchars($row['log_date']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['sleep_hours']) . " hrs</td>";
-                            echo "<td>" . htmlspecialchars($row['stress_level']) . " / 10</td>";
-                            echo "<td>" . htmlspecialchars($row['mood_score']) . " / 10</td>";
-                            echo "<td>" . $status . "</td>";
-                            echo "</tr>";
+                            $score = $row['sql_readiness_score'];
+                            $color = ($score >= 75) ? "green" : (($score >= 50) ? "orange" : "red");
+                            
+                            echo "<tr>
+                                    <td>{$row['log_date']}</td>
+                                    <td>{$row['sleep_hours']}</td>
+                                    <td>{$row['stress_level']}</td>
+                                    <td><strong style='color: {$color};'>{$score}%</strong></td>
+                                  </tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='5' style='text-align:center;'>No wellness records found yet.</td></tr>";
+                        echo "<tr><td colspan='4'>Log some wellness data to see your history!</td></tr>";
                     }
                     ?>
                 </table>
             </div>
-
             <div class="card">
                 <h3>🤝 Recommended Peer Tutors</h3>
                 <p style="font-size: 0.9em; color: #555;">
